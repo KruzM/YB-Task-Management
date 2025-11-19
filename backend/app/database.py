@@ -1,14 +1,30 @@
+import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-import os
+from dotenv import load_dotenv
 
-# Load DB URL from environment or default to sqlite
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./yb_task_management.db")
+# Load environment variables
+load_dotenv()
 
-# Set connect args for SQLite
+# --- Determine project root directory reliably ---
+# backend/app/database.py → go up 2 levels → project root
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Default DB path inside project root
+DEFAULT_DB_PATH = PROJECT_ROOT / "yb_task_management.db"
+
+# Read from .env or fall back to the absolute path
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{DEFAULT_DB_PATH}"
+)
+
+# Enable check_same_thread only for SQLite
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
-        DATABASE_URL, connect_args={"check_same_thread": False}
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
     )
 else:
     engine = create_engine(DATABASE_URL)

@@ -1,23 +1,20 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
-from backend.app.database import Base
-
+from .database import Base
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    full_name = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
-    role = Column(String, default="employee")
-
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
     client_assignments = relationship("ClientAssignment", back_populates="user")
     task_assignments = relationship("TaskAssignment", back_populates="user")
-
-
+    
 class Client(Base):
     __tablename__ = "clients"
 
@@ -38,7 +35,6 @@ class ClientAssignment(Base):
 
     user = relationship("User", back_populates="client_assignments")
     client = relationship("Client", back_populates="assignments")
-
 
 class Task(Base):
     __tablename__ = "tasks"

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-
+from . import crud
 from backend.app.database import SessionLocal
 from backend.app.models import User
 from backend.app.schemas import Token, UserLogin
@@ -38,21 +38,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # Find user
-    user = db.query(User).filter(User.email == form_data.username).first()
+    # OAuth2 sends username, so treat it as email
+    email = form_data.username  
+    password = form_data.password
+
+    user = crud.get_user_by_email(db, email=email)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # Check password
-    if not verify_password(form_data.password, user.hashed_password):
+    if not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # Create token
-    access_token = create_access_token({"sub": str(user.id)})
+    access_token = create_access_token({"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
-
 
 @router.post("/create-admin")
 def create_admin(db: Session = Depends(get_db)):
@@ -61,6 +61,7 @@ def create_admin(db: Session = Depends(get_db)):
     admin_email = os.getenv("ADMIN_EMAIL")
     admin_password = os.getenv("ADMIN_PASSWORD")
 
+    print("ADMIN_PASSWORD LOADED:", repr(admin_password), "LEN:", len(admin_password))
     if not admin_email or not admin_password:
         raise HTTPException(status_code=500, detail="Admin credentials not set in .env")
 
@@ -75,8 +76,8 @@ def create_admin(db: Session = Depends(get_db)):
 
     new_admin = User(
         email=admin_email,
-        name="Admin",
-        role="admin",
+        full_name="Admin",
+        is_admin=True,
         hashed_password=hashed_pw
     )
     db.add(new_admin)
