@@ -1,23 +1,37 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel,EmailStr
+from typing import Optional, List
 
 
 class UserBase(BaseModel):
-    email: str
-    name: Optional[str] = None
-
+    email: EmailStr
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = True
+    is_admin: Optional[bool] = False
+    role_id: Optional[int] = None
 
 class UserCreate(UserBase):
     password: str
-    role: str = "user"
 
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    role_id: Optional[int] = None
 
-class User(BaseModel):
+class RoleShort(BaseModel):
     id: int
-    email: str
-    name: Optional[str]
-    role: str
-    is_active: bool = True
+    name: str
+
+    class Config:
+        orm_mode = True
+
+class UserOut(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: Optional[str] = None
+    is_active: bool
+    is_admin: bool
+    role: Optional[RoleShort] = None
 
     class Config:
         orm_mode = True

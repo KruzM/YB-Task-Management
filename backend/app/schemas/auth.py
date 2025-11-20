@@ -14,3 +14,18 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     sub: Optional[str] = None
+
+class UserRole(BaseModel):
+    id: int
+    name: str
+    permissions: list
+
+class UserInfo(BaseModel):
+    id: int
+    email: str
+    role: Optional[UserRole]
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserInfo

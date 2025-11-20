@@ -5,8 +5,13 @@ class PermissionBase(BaseModel):
     name: str
     description: Optional[str] = None
 
+class PermissionCreate(PermissionBase):
+    pass
+
+
 class PermissionOut(PermissionBase):
     id: int
+
     class Config:
         orm_mode = True
 
@@ -20,5 +25,11 @@ class RoleCreate(RoleBase):
 class RoleOut(RoleBase):
     id: int
     permissions: List[PermissionOut]
+    class Config:
+        orm_mode = True
+
+class PermissionRead(PermissionBase):
+    id: int
+
     class Config:
         orm_mode = True

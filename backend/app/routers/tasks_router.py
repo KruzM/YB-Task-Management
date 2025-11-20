@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
-from backend.app import crud
+from backend.app import crud_utils
 from backend.app.schemas.tasks import (
     TaskCreate,
     TaskUpdate,
@@ -28,7 +28,7 @@ def create_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud.tasks.create_task(db, task_data, creator_id=current_user.id)
+    task = crud_utils.tasks.create_task(db, task_data, creator_id=current_user.id)
     return task
 
 
@@ -56,9 +56,9 @@ def list_tasks(
     sort_by: Optional[str] = "created_at",  # created_at, updated_at, due_date, title
     sort_dir: Optional[str] = "desc"        # asc or desc
 ):
-    tasks = crud.tasks.list_tasks(
+    tasks = crud_utils.tasks.list_tasks(
         db=db,
-        status=status,
+        statuses=statuses,
         client_id=client_id,
         assigned_user_id=assigned_user_id,
         billable=billable,
@@ -78,7 +78,7 @@ def get_kanban_board(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    board = crud.tasks.kanban_board(db)
+    board = crud_utils.tasks.kanban_board(db)
     return board
 
 # ---------------------------------------------------
@@ -91,7 +91,7 @@ def get_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud.tasks.get_task(db, task_id)
+    task = crud_utils.tasks.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -108,7 +108,7 @@ def update_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud.tasks.update_task(db, task_id, updates)
+    task = crud_utils.tasks.update_task(db, task_id, updates)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -124,7 +124,7 @@ def delete_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    deleted = crud.tasks.delete_task(db, task_id)
+    deleted = crud_utils.tasks.delete_task(db, task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
     return
@@ -141,7 +141,7 @@ def assign_user_to_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    assignment = crud.tasks.add_user_to_task(db, task_id, user_id)
+    assignment = crud_utils.tasks.add_user_to_task(db, task_id, user_id)
     return {"message": "User assigned", "assignment_id": assignment.id}
 
 
@@ -152,7 +152,7 @@ def remove_user_from_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    success = crud.tasks.remove_user_from_task(db, task_id, user_id)
+    success = crud_utils.tasks.remove_user_from_task(db, task_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Assignment not found")
     return {"message": "User removed"}
@@ -169,7 +169,7 @@ def add_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    subtask = crud.tasks.add_subtask(db, task_id, subtask_data)
+    subtask = crud_utils.tasks.add_subtask(db, task_id, subtask_data)
     return subtask
 
 
@@ -180,7 +180,7 @@ def update_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    updated = crud.tasks.update_subtask(
+    updated = crud_utils.tasks.update_subtask(
         db,
         subtask_id,
         title=updates.title,
@@ -197,7 +197,7 @@ def delete_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    deleted = crud.tasks.delete_subtask(db, subtask_id)
+    deleted = crud_utils.tasks.delete_subtask(db, subtask_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Subtask not found")
     return

@@ -1,10 +1,10 @@
 # backend/app/auth.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from backend.app.database import SessionLocal
-from backend.app.models import User
+from backend.app.models import User, Role
 from backend.app.utils.security import verify_password, create_access_token, decode_access_token, hash_password, get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -33,8 +33,33 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token({"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
 
+   
+    role = None
+    permissions = []
+
+    if user.role_id:
+        role = db.query(Role).filter(Role.id == user.role_id).first()
+        if role:
+            # fetch permissions for this role
+            permissions = [
+                {"id": p.id, "name": p.name, "description": p.description}
+                for p in [rp.permission for rp in role.permissions]
+            ]
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "role": {
+                "id": role.id if role else None,
+                "name": role.name if role else None,
+                "permissions": permissions
+            }
+        }
+    }
 
 # Optional helper endpoint to create admin from env vars
 @router.post("/create-admin")
@@ -63,3 +88,15 @@ def create_admin(db: Session = Depends(get_db)):
     db.refresh(new_admin)
 
     return {"message": "Admin created", "email": admin_email}
+
+def require_admin(current_user: User = Depends(get_current_user)):
+    """
+    Require that the current user is an admin.
+    Called as a dependency for admin-only routes.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user

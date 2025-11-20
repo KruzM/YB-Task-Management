@@ -6,14 +6,19 @@ from backend.app.routers import tasks_router
 from backend.app.routers import admin_permissions_router
 from fastapi.security import APIKeyHeader
 from fastapi.openapi.utils import get_openapi
-
+from backend.app.routers.users_router import router as users_router
+from backend.app.startup import seed_data
 load_dotenv()
 app = FastAPI()
+@app.on_event("startup")
+def startup_event():
+    seed_data()
+
 app.include_router(tasks_router.router)
 app.include_router(auth.router)
 # Attach admin router with a single /admin prefix (router itself has no prefix)
 app.include_router(admin_permissions_router.router, prefix="/admin", tags=["Admin Permissions"])
-
+app.include_router(users_router)
 api_key_scheme = APIKeyHeader(name="Authorization")  # not strictly required, but available if you use it in future
 
 def custom_openapi():
