@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from . import models, schemas
-
+from backend.app.schemas.users import UserCreate, User
 
 # Get a user by email
 def get_user_by_email(db: Session, email: str):
@@ -8,7 +8,7 @@ def get_user_by_email(db: Session, email: str):
 
 
 # Create a new user (used for admin creation too)
-def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
+def create_user(db: Session, user: UserCreate, hashed_password: str):
     db_user = models.User(
         email=user.email,
         full_name=user.full_name,
