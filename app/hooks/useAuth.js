@@ -12,7 +12,7 @@ export const useAuth = () => {
     const userData = localStorage.getItem("user");
 
     if (!token || !userData) {
-      router.push("/login");
+      router.push("/auth/login");
       return;
     }
 

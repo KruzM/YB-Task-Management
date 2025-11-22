@@ -22,15 +22,14 @@ export default function LoginPage() {
   body.append("password", password);
 
   try {
-    const res = await fetch("https://expert-space-umbrella-r9x5rpw7wgph5jr7-8000.app.github.dev/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      }, 
-      body, // <-- form data (NOT JSON)
-      credentials: "include",
-    });
-
+const res = await fetch("http://10.0.0.237:8000/auth/login", {
+  method: "POST",
+  mode: "cors",
+  headers: {
+    "Content-Type": "application/x-www-form-urlencoded",
+  },
+  body,
+});
     if (!res.ok) {
       setError("Invalid email or password.");
       return;

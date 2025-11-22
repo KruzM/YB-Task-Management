@@ -1,15 +1,27 @@
-
 from fastapi import FastAPI
 from backend.app import auth
 from dotenv import load_dotenv
 from backend.app.routers import tasks_router
 from backend.app.routers import admin_permissions_router
 from fastapi.security import APIKeyHeader
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from backend.app.routers.users_router import router as users_router
 from backend.app.startup import seed_data
 load_dotenv()
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://10.0.0.237:3000"
+],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 def startup_event():
     seed_data()

@@ -1,53 +1,19 @@
-"use client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { User, ClipboardList, Bell, LogOut } from "lucide-react";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { useAuth } from "../hooks/useAuth";
 
-export default function Dashboard() {
-  const { user } = useAuth();
+export default function DashboardPage() {
+return (
+<div className="min-h-screen bg-gray-100 flex flex-col">
+{/* Top Bar */}
+<div className="w-full bg-white shadow p-4 flex justify-between items-center border-b">
+<h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+<div className="flex items-center gap-6">
+<Bell className="w-6 h-6 text-gray-700 cursor-pointer hover:text-teal-700" />
+<User className="w-6 h-6 text-gray-700 cursor-pointer hover:text-teal-700" />
+<LogOut className="w-6 h-6 text-gray-700 cursor-pointer hover:text-red-600" />
+</div>
+</div>
+<div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
 
-  if (!user) return <div>Loading...</div>;
-
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold mb-4">
-        Welcome, {user.email}
-      </h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Today's Tasks</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Tasks assigned for today will appear here.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Deadlines</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Due dates & tax deadlines will appear here.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Client Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Password changes, requests, or messages appear here.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
