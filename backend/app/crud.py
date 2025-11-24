@@ -1,7 +1,12 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models
 from backend.app.schemas.users import UserCreate
 from sqlalchemy.exc import IntegrityError
+from .models import Client, Task, TaskAssignment
+from .schemas.clients import ClientCreate, ClientUpdate
+import json
+from datetime import datetime
+from backend.app.services.recurrence.generator import generate_on_completion
 
 # Get a user by email
 def get_user_by_email(db: Session, email: str):
@@ -84,3 +89,102 @@ def activate_user(db: Session, user_id: int):
     db.commit()
     db.refresh(u)
     return u
+
+# =============================
+# CLIENT CRUD OPERATIONS
+# =============================
+
+def create_client(db, client_data: ClientCreate):
+    new_client = Client(**client_data.dict())
+    db.add(new_client)
+    db.commit()
+    db.refresh(new_client)
+    return new_client
+
+
+def get_clients(db):
+    return db.query(Client).all()
+
+
+def get_client_by_id(db, client_id: int):
+    return db.query(Client).filter(Client.id == client_id).first()
+
+
+def update_client(db, client_id: int, upd: ClientUpdate):
+    client = get_client_by_id(db, client_id)
+    if not client:
+        return None
+
+    for field, value in upd.dict(exclude_unset=True).items():
+        setattr(client, field, value)
+
+    db.commit()
+    db.refresh(client)
+    return client
+
+
+def delete_client(db, client_id: int):
+    client = get_client_by_id(db, client_id)
+    if not client:
+        return False
+
+    db.delete(client)
+    db.commit()
+    return True
+
+# =============================
+# AUDIT LOG 
+# =============================
+
+# def create_audit(db: Session, payload):
+#     obj = AuditLog(
+#         actor_id=payload.actor_id,
+#         actor_email=payload.actor_email,
+#         target_type=payload.target_type,
+#         target_id=payload.target_id,
+#         action=payload.action,
+#         details=json.dumps(payload.details) if payload.details else None,
+#         ip_address=payload.ip_address,
+#         user_agent=payload.user_agent,
+#     )
+#     db.add(obj)
+#     db.commit()
+#     db.refresh(obj)
+#     return obj
+
+# def list_audit(db: Session, skip=0, limit=100):
+#     return db.query(AuditLog).order_by(AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
+
+
+# def get_recurring_master_tasks_due(db: Session, now: datetime):
+#     return db.query(Task).filter(Task.is_recurring == True, Task.parent_task_id == None, Task.due_date <= now).all()
+
+# ---------------------
+# Task completion helper (crud.py)
+# ---------------------
+
+
+def mark_task_completed(db, task_id: int, actor_id: int | None = None):
+    """
+    Mark a task as completed and, if recurring, generate the next occurrence immediately.
+    Returns the updated task and (optionally) the new generated task.
+    """
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        return None
+
+    task.status = "completed"
+    task.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(task)
+
+    generated = None
+    try:
+        gen_mode = getattr(task, "generation_mode", "on_completion")
+        if getattr(task, "is_recurring", False) and gen_mode == "on_completion":
+            generated = generate_on_completion(db, task)
+    except Exception as e:
+        db.rollback()
+        print("recurrence generation error:", e)
+
+    return {"task": task, "generated": generated}

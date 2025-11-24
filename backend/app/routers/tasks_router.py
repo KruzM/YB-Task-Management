@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
 
 from backend.app.database import get_db
-from backend.app import crud_utils
+from backend.app.auth import get_current_user
+from backend.app.models import User
+
 from backend.app.schemas.tasks import (
     TaskCreate,
     TaskUpdate,
@@ -11,37 +15,34 @@ from backend.app.schemas.tasks import (
     SubtaskUpdate,
     SubtaskOut,
 )
-from backend.app.auth import get_current_user
-from typing import List, Optional
-from backend.app.models import User
-from datetime import datetime
+
+# All task logic lives here
+from backend.app.crud_utils import tasks as task_crud
+
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
 # ---------------------------------------------------
 # CREATE TASK
 # ---------------------------------------------------
-
 @router.post("/", response_model=TaskOut)
 def create_task(
     task_data: TaskCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud_utils.tasks.create_task(db, task_data, creator_id=current_user.id)
+    task = task_crud.create_task(db, task_data, creator_id=current_user.id)
     return task
 
 
 # ---------------------------------------------------
 # LIST TASKS
 # ---------------------------------------------------
-
 @router.get("/", response_model=List[TaskOut])
 def list_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 
-    # FILTERS
     statuses: Optional[str] = None,
     client_id: Optional[int] = None,
     assigned_user_id: Optional[int] = None,
@@ -49,14 +50,12 @@ def list_tasks(
     due_before: Optional[datetime] = None,
     due_after: Optional[datetime] = None,
 
-    # SEARCH
     search: Optional[str] = None,
 
-    # SORTING
-    sort_by: Optional[str] = "created_at",  # created_at, updated_at, due_date, title
-    sort_dir: Optional[str] = "desc"        # asc or desc
+    sort_by: Optional[str] = "created_at",
+    sort_dir: Optional[str] = "desc",
 ):
-    tasks = crud_utils.tasks.list_tasks(
+    return task_crud.list_tasks(
         db=db,
         statuses=statuses,
         client_id=client_id,
@@ -68,30 +67,29 @@ def list_tasks(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-    return tasks
+
+
 # ---------------------------------------------------
 # KANBAN VIEW
 # ---------------------------------------------------
-
 @router.get("/kanban")
 def get_kanban_board(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    board = crud_utils.tasks.kanban_board(db)
-    return board
+    return task_crud.kanban_board(db)
+
 
 # ---------------------------------------------------
 # GET SINGLE TASK
 # ---------------------------------------------------
-
 @router.get("/{task_id}", response_model=TaskOut)
 def get_task(
     task_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud_utils.tasks.get_task(db, task_id)
+    task = task_crud.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -100,7 +98,6 @@ def get_task(
 # ---------------------------------------------------
 # UPDATE TASK
 # ---------------------------------------------------
-
 @router.patch("/{task_id}", response_model=TaskOut)
 def update_task(
     task_id: int,
@@ -108,32 +105,51 @@ def update_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = crud_utils.tasks.update_task(db, task_id, updates)
-    if not task:
+
+    # Detect completion ? use special behavior
+    if updates.status == "completed":
+        result = task_crud.mark_task_completed(db, task_id)
+        return result["task"]
+
+    updated = task_crud.update_task(db, task_id, updates)
+    if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
+
+    return updated
+
+
+# Fallback full update route (PUT)
+@router.put("/{task_id}", response_model=TaskOut)
+def update_task_put(
+    task_id: int,
+    payload: TaskUpdate,
+    db: Session = Depends(get_db)
+):
+    if payload.status == "completed":
+        result = task_crud.mark_task_completed(db, task_id)
+        return result["task"]
+
+    return task_crud.update_task(db, task_id, payload)
 
 
 # ---------------------------------------------------
 # DELETE TASK
 # ---------------------------------------------------
-
 @router.delete("/{task_id}", status_code=204)
 def delete_task(
     task_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    deleted = crud_utils.tasks.delete_task(db, task_id)
+    deleted = task_crud.delete_task(db, task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
     return
 
 
 # ---------------------------------------------------
-# ASSIGN USERS TO TASK
+# ASSIGN USERS
 # ---------------------------------------------------
-
 @router.post("/{task_id}/assign/{user_id}")
 def assign_user_to_task(
     task_id: int,
@@ -141,7 +157,7 @@ def assign_user_to_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    assignment = crud_utils.tasks.add_user_to_task(db, task_id, user_id)
+    assignment = task_crud.add_user_to_task(db, task_id, user_id)
     return {"message": "User assigned", "assignment_id": assignment.id}
 
 
@@ -152,7 +168,7 @@ def remove_user_from_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    success = crud_utils.tasks.remove_user_from_task(db, task_id, user_id)
+    success = task_crud.remove_user_from_task(db, task_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Assignment not found")
     return {"message": "User removed"}
@@ -161,7 +177,6 @@ def remove_user_from_task(
 # ---------------------------------------------------
 # SUBTASKS
 # ---------------------------------------------------
-
 @router.post("/{task_id}/subtasks", response_model=SubtaskOut)
 def add_subtask(
     task_id: int,
@@ -169,8 +184,7 @@ def add_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    subtask = crud_utils.tasks.add_subtask(db, task_id, subtask_data)
-    return subtask
+    return task_crud.add_subtask(db, task_id, subtask_data)
 
 
 @router.patch("/subtasks/{subtask_id}", response_model=SubtaskOut)
@@ -180,7 +194,7 @@ def update_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    updated = crud_utils.tasks.update_subtask(
+    updated = task_crud.update_subtask(
         db,
         subtask_id,
         title=updates.title,
@@ -197,7 +211,7 @@ def delete_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    deleted = crud_utils.tasks.delete_subtask(db, subtask_id)
+    deleted = task_crud.delete_subtask(db, subtask_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Subtask not found")
     return

@@ -1,4 +1,5 @@
 # backend/app/auth.py
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -7,7 +8,14 @@ import os
 
 from backend.app.database import get_db
 from backend.app import models
-from backend.app.utils.security import verify_password, create_access_token, hash_password, get_current_user
+from backend.app.utils.security import (
+    verify_password,
+    create_access_token,
+    hash_password,
+    get_current_user,
+)
+from .schemas.users import UserCreate  # ? ONLY NEED UserCreate
+from .crud import create_user, get_user_by_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -54,3 +62,32 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
 def logout(response: Response):
     response.delete_cookie("token", path="/")
     return {"message": "Logged out"}
+
+@router.post("/register")
+def register_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+
+    # Only admins can register new users
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can create new users.")
+
+    # Ensure email not taken
+    existing = get_user_by_email(db, user.email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered.")
+
+    hashed_pw = hash_password(user.password)
+    new_user = create_user(db, user, hashed_pw)
+
+    return {
+        "message": "User created successfully",
+        "user": {
+            "id": new_user.id,
+            "email": new_user.email,
+            "full_name": new_user.full_name,
+            "role_id": new_user.role_id,
+        },
+    }
