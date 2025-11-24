@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from sqlalchemy.orm import Session
-
+from backend.app.models import Role, Permission, RolePermission, User
 from backend.app.database import get_db
 from backend.app.schemas.users import UserCreate, UserOut, UserUpdate
 from backend.app.utils.security import get_current_user, hash_password
-from backend.app.auth import require_admin
 from backend.app import crud
 from backend.app import models
-
+from backend.app.utils.permissions import require_permission
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
@@ -19,7 +18,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 def create_user_endpoint(
     payload: UserCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user: User = Depends(require_permission("manage_roles")),
 ):
     existing = crud.get_user_by_email(db, payload.email)
     if existing:
@@ -36,7 +35,7 @@ def create_user_endpoint(
 @router.get("/", response_model=List[UserOut])
 def list_users_endpoint(
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user: User = Depends(require_permission("manage_roles")),
 ):
     return crud.list_users(db)
 

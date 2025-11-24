@@ -1,21 +1,14 @@
-import '../styles/globals.css';
-import Sidebar from "@/components/Sidebar";
-import Topbar from "@/components/Topbar";
+// app/layout.jsx
+import "./globals.css";
 
 export const metadata = {
-  title: "YB Task UI",
+  title: "YB Task Management",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="flex">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Topbar />
-          <main className="p-6">{children}</main>
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

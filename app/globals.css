@@ -1,0 +1,436 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Base Reset (safe version) --- */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ================================
+   BRAND DESIGN TOKENS
+================================ */
+:root {
+  /* Primary brand colors */
+  --brand-primary: #1B7F81;
+  --brand-primary-light: #128b8b;
+  --brand-dark: #144B4D;
+  --brand-accent: #EAF8F7;
+
+  /* Backgrounds */
+  --bg: #F7FAFB;
+  --surface: #ffffff;
+
+  /* Text / utility */
+  --muted: #6B7280;
+  --text: #0F172A;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Shadows */
+  --card-shadow: 0 6px 20px rgba(15,23,42,0.06);
+  --card-elev:   0 10px 30px rgba(15,23,42,0.06);
+
+  /* Transitions */
+  --transition-fast: 160ms;
+  --transition: 240ms;
+}
+
+/* Keep Tailwind's defaults intact */
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+/* ================================
+   COMPONENTS
+================================ */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 0;
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+}
+
+.btn-primary {
+  background: var(--brand-primary);
+  color: white;
+  box-shadow: 0 4px 14px rgba(27,127,129,0.15);
+}
+
+.btn-primary:hover {
+  background: var(--brand-primary-light);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(15,23,42,0.08);
+  color: var(--muted);
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--card-shadow);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--card-elev);
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-muted {
+  background: #F3F4F6;
+  color: var(--muted);
+}
+
+.badge-accent {
+  background: var(--brand-accent);
+  color: var(--brand-dark);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: var(--brand-dark);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 6px 20px rgba(15,23,42,0.08);
+}
+
+.sidebar .logoWrap {
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar .brandTitle {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Navigation */
+.navItem {
+  display: block;
+  padding: 12px 14px;
+  margin: 6px 8px;
+  border-radius: 10px;
+  color: rgba(255,255,255,0.95);
+  font-weight: 600;
+  transition: background var(--transition), transform var(--transition-fast);
+}
+
+.navItem:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+
+.navItem.active {
+  background: var(--brand-primary);
+  color: white;
+  box-shadow: 0 6px 16px rgba(27,127,129,0.12);
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  width: 100%;
+  padding-right: 20px;
+}
+
+/* Top bar */
+.topbar {
+  height: 58px;
+  background: var(--surface);
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Restore spacing (this was causing the squish) */
+main {
+  width: 100%;
+  padding: 28px !important;
+}
+
+/* Responsive Sidebar Collapse */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 72px;
+  }
+
+  .sidebar .brandTitle {
+    display: none;
+  }
+
+  .navItem {
+    text-align: center;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+/* === Layout helpers extracted from Dashboard inline styles === */
+
+.layout-page {
+  min-height: 100vh;
+  display: flex;
+  width: 100%;
+}
+
+/* main column that holds topbar + content */
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* page content wrapper (was inline padding) */
+.page-content {
+  padding: 28px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* centered container and width limit */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* heading */
+.page-heading { margin-bottom: 18px; }
+.page-title { font-size: 32px; margin: 0; font-weight: 800; color: var(--text); }
+.page-subtitle { margin-top: 6px; color: var(--muted); }
+
+/* grid: main tasks column + aside */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Small reusable card variants */
+.card-section { margin-bottom: 18px; }
+.card-tasks { padding: 12px; }
+.card-profile { margin-bottom: 18px; }
+.card-quick { margin-top: 6px; }
+
+/* Section header in card with refresh button */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title { font-weight: 700; }
+.section-sub { color: var(--muted); margin-top: 6px; }
+
+/* Tasks list and rows */
+.tasks-list { display: grid; gap: 12px; }
+.task-row {
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,0.04);
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+}
+.task-main .task-title { font-weight: 700; }
+.task-main .task-desc { color: var(--muted); margin-top: 6px; }
+.task-meta { color: var(--muted); font-size: 13px; }
+
+/* Aside column */
+.aside-col { display: flex; flex-direction: column; gap: 18px; }
+
+/* Profile */
+.profile-heading { font-weight: 700; margin-bottom: 12px; }
+.profile-row { display: flex; align-items: center; gap: 12px; }
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #F3F4F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* Quick actions */
+.quick-actions { display: grid; gap: 10px; margin-top: 6px; }
+.quick-btn {
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid rgba(15,23,42,0.04);
+  background: white;
+}
+.quick-create { background: linear-gradient(180deg, rgba(234,248,247,1), rgba(234,248,247,1)); }
+.quick-upload { background: linear-gradient(180deg, rgba(235,244,255,1), rgba(235,244,255,1)); }
+
+/* small helpers */
+.muted-text { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-container { padding: 0 16px; }
+  .page-content { padding: 18px; }
+}
+/* Page container layout */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Page header */
+.page-header h1 {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.page-subtext {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+/* Table-like list */
+.list-header,
+.list-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px;
+  padding: 12px 4px;
+  align-items: center;
+}
+
+.list-header {
+  font-weight: 700;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+  margin-bottom: 6px;
+}
+
+.list-row {
+  border-bottom: 1px solid rgba(15,23,42,0.04);
+  padding: 10px 0;
+}
+
+.list-row:hover {
+  background: #f9fafa;
+  border-radius: var(--radius-sm);
+}
+/* Wrapper for pages inside protected layout */
+.page-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-main {
+  width: 100%;
+  padding: 28px !important;
+}
+
+/* Header */
+.page-header-block {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.page-subtext {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Table Styles */
+.table-header,
+.table-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 100px;
+  padding: 14px 8px;
+  align-items: center;
+}
+
+.table-header {
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.table-row {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.04);
+  transition: background var(--transition-fast);
+}
+
+.table-row:hover {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.row-primary {
+  font-weight: 600;
+}
+
+.row-muted {
+  color: var(--muted);
+}
+
+/* Empty state */
+.empty-state {
+  padding: 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Small button variation */
+.small-btn {
+  padding: 6px 12px !important;
+  font-size: 13px;
+}

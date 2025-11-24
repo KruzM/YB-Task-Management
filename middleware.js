@@ -1,27 +1,38 @@
+// middleware.js
 import { NextResponse } from "next/server";
 
+const protectedRoutes = ["/dashboard", "/clients"];
+
 export function middleware(req) {
-  const token = req.cookies.get("token")?.value || req.headers.get("authorization") || null;
+  const { pathname } = req.nextUrl;
 
-  const isAuthPage = req.nextUrl.pathname.startsWith("/auth");
-  const isProtected = req.nextUrl.pathname.startsWith("/dashboard");
-
-  // Not logged in ? trying to access protected route
-  if (!token && isProtected) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+  // Allow next internals, static assets and the login page
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/static") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/login" ||
+    pathname.startsWith("/api") // allow api proxied calls if any
+  ) {
+    return NextResponse.next();
   }
 
-  // Logged in ? trying to access login page
-  if (token && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  const needsAuth = protectedRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"));
+
+  // Read token cookie (if present)
+  const token = req.cookies.get("token")?.value || null;
+
+  if (needsAuth && !token) {
+    // Redirect to frontend login page (not backend)
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/auth/:path*"
-  ]
+  matcher: ["/dashboard/:path*", "/clients/:path*"],
 };

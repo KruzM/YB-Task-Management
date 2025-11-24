@@ -8,7 +8,6 @@ from backend.app.utils.permissions import require_permission
 from backend.app.utils.security import get_current_user
 from backend.app.schemas.roles import RoleCreate, RoleOut, RoleUpdate
 from typing import List, Dict
-from backend.app.auth import require_admin
 
 router = APIRouter()  # no prefix here — main.py will attach prefix="/admin"
 
@@ -17,7 +16,7 @@ router = APIRouter()  # no prefix here — main.py will attach prefix="/admin"
 def create_role(
     role: RoleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_permission("manage_roles")),
 ):
     # Allow first-time bootstrap (no roles exist)
     role_count = db.query(Role).count()
@@ -49,7 +48,7 @@ def create_role(
 @router.get("/roles", response_model=List[RoleOut], tags=["Admin Permissions"])
 def get_roles(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_permission("manage_roles"))
 ):
     roles = db.query(Role).all()
 
@@ -77,7 +76,7 @@ def get_roles(
 def create_permission(
     permission: PermissionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_permission("manage_roles")),
 ):
     role_count = db.query(Role).count()
     existing = db.query(Permission).filter(Permission.name == permission.name).first()
@@ -102,7 +101,7 @@ def create_permission(
 @router.get("/permissions", response_model=List[PermissionRead])
 def get_permissions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_permission("manage_roles"))
 ):
    
     role_count = db.query(Role).count()
@@ -129,7 +128,7 @@ def debug_me(user = Depends(get_current_user)):
 def update_role(
     role_id: int,
     updates: RoleUpdate,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_permission("manage_roles")),
     db: Session = Depends(get_db)
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
