@@ -1,9 +1,25 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from typing import Optional
 from . import models
 from backend.app.schemas.users import UserCreate
 from sqlalchemy.exc import IntegrityError
-from .models import Client, Task, TaskAssignment
-from .schemas.clients import ClientCreate, ClientUpdate
+from .models import (
+    Client,
+    Task,
+    TaskAssignment,
+    Contact,
+    Account,
+    ClientGroup,
+    ClientGroupMember,
+    ClientContact,
+)
+from .schemas.clients import (
+    ClientCreate,
+    ClientUpdate,
+    ContactCreate,
+    AccountCreate,
+    ClientGroupCreate,
+)
 import json
 from datetime import datetime
 from backend.app.services.recurrence.evaluator import evaluate_task_for_recurrence
@@ -104,12 +120,46 @@ def create_client(db, client_data: ClientCreate):
     return new_client
 
 
-def get_clients(db):
-    return db.query(Client).all()
+def get_clients(db, search: Optional[str] = None, status: Optional[str] = None, group_name: Optional[str] = None):
+    query = db.query(Client)
+
+    if status:
+        query = query.filter(Client.status == status)
+
+    if search:
+        like_pattern = f"%{search}%"
+        query = query.filter(
+            (Client.name.ilike(like_pattern)) |
+            (Client.primary_contact.ilike(like_pattern)) |
+            (Client.primary_email.ilike(like_pattern))
+        )
+
+    if group_name:
+        query = query.join(Client.group_memberships).join(ClientGroupMember.group).filter(ClientGroup.name == group_name)
+
+    clients = query.options(
+        selectinload(Client.contacts),
+        selectinload(Client.accounts),
+        selectinload(Client.group_memberships)
+        .selectinload(ClientGroupMember.group)
+        .selectinload(ClientGroup.members),
+    ).all()
+    return clients
 
 
 def get_client_by_id(db, client_id: int):
-    return db.query(Client).filter(Client.id == client_id).first()
+    return (
+        db.query(Client)
+        .options(
+            selectinload(Client.contacts),
+            selectinload(Client.accounts),
+            selectinload(Client.group_memberships)
+            .selectinload(ClientGroupMember.group)
+            .selectinload(ClientGroup.members),
+        )
+        .filter(Client.id == client_id)
+        .first()
+    )
 
 
 def update_client(db, client_id: int, upd: ClientUpdate):
@@ -133,6 +183,109 @@ def delete_client(db, client_id: int):
     db.delete(client)
     db.commit()
     return True
+
+
+# =============================
+# CONTACTS
+# =============================
+
+def create_contact(db: Session, payload: ContactCreate):
+    contact = Contact(**payload.dict())
+    db.add(contact)
+    db.commit()
+    db.refresh(contact)
+    return contact
+
+
+def list_contacts(db: Session, search: Optional[str] = None):
+    query = db.query(Contact)
+    if search:
+        like_pattern = f"%{search}%"
+        query = query.filter(
+            (Contact.name.ilike(like_pattern)) |
+            (Contact.email.ilike(like_pattern)) |
+            (Contact.phone.ilike(like_pattern))
+        )
+    return query.all()
+
+
+def attach_contact_to_client(db: Session, client_id: int, contact_id: int, relationship: Optional[str] = None):
+    existing = (
+        db.query(ClientContact)
+        .filter(ClientContact.client_id == client_id, ClientContact.contact_id == contact_id)
+        .first()
+    )
+    if existing:
+        return existing
+
+    link = ClientContact(client_id=client_id, contact_id=contact_id, relationship=relationship)
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+def remove_contact_from_client(db: Session, client_id: int, contact_id: int):
+    link = (
+        db.query(ClientContact)
+        .filter(ClientContact.client_id == client_id, ClientContact.contact_id == contact_id)
+        .first()
+    )
+    if link:
+        db.delete(link)
+        db.commit()
+    return True
+
+
+# =============================
+# ACCOUNTS
+# =============================
+
+def create_account(db: Session, payload: AccountCreate, client_id: Optional[int] = None):
+    data = payload.dict()
+    if client_id:
+        data["client_id"] = client_id
+    account = Account(**data)
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
+
+
+def list_accounts_for_client(db: Session, client_id: int):
+    return db.query(Account).filter(Account.client_id == client_id).all()
+
+
+# =============================
+# CLIENT GROUPS
+# =============================
+
+def create_client_group(db: Session, payload: ClientGroupCreate):
+    group = ClientGroup(**payload.dict())
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+def list_client_groups(db: Session):
+    return db.query(ClientGroup).all()
+
+
+def add_client_to_group(db: Session, client_id: int, group_id: int, role: Optional[str] = None):
+    existing = (
+        db.query(ClientGroupMember)
+        .filter(ClientGroupMember.client_id == client_id, ClientGroupMember.group_id == group_id)
+        .first()
+    )
+    if existing:
+        return existing
+
+    membership = ClientGroupMember(client_id=client_id, group_id=group_id, role=role)
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+    return membership
 
 # =============================
 # AUDIT LOG 

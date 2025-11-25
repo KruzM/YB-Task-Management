@@ -1,6 +1,6 @@
 # backend/app/schemas/tasks.py
 # ---------------------
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, date
 from enum import Enum
@@ -114,9 +114,24 @@ class TaskOut(TaskBase):
     created_at: datetime
     updated_at: datetime
 
-    subtasks: List[SubtaskOut] = []
-    assignments: List[TaskAssignmentOut] = []
-    tags: List[TagOut] = []
+    subtasks: List[SubtaskOut] = Field(default_factory=list)
+    assignments: List[TaskAssignmentOut] = Field(default_factory=list)
+    tags: List[TagOut] = Field(default_factory=list)
 
     class Config:
         orm_mode = True
+
+
+class TodayDashboard(BaseModel):
+    one_off_tasks: List[TaskOut]
+    recurring_tasks: List[TaskOut]
+
+
+class AdminUserTaskSummary(BaseModel):
+    user_id: int
+    user_name: str | None = None
+    total_tasks: int
+    open_tasks: int
+    in_progress_tasks: int
+    waiting_on_client: int
+    completed_tasks: int

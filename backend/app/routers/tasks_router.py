@@ -14,6 +14,8 @@ from backend.app.schemas.tasks import (
     SubtaskCreate,
     SubtaskUpdate,
     SubtaskOut,
+    TodayDashboard,
+    AdminUserTaskSummary,
 )
 
 # All task logic lives here
@@ -69,6 +71,43 @@ def list_tasks(
     )
 
 
+@router.get("/dashboard/today", response_model=TodayDashboard)
+def today_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    one_off, recurring = task_crud.tasks_due_today_for_user(db, current_user.id)
+    return TodayDashboard(one_off_tasks=one_off, recurring_tasks=recurring)
+
+
+@router.get("/queue/waiting", response_model=List[TaskOut])
+def waiting_on_client_queue(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return task_crud.waiting_on_client_queue(db, user_id=current_user.id)
+
+
+@router.get("/dashboard/admin", response_model=List[AdminUserTaskSummary])
+def admin_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return task_crud.admin_overview_by_user(db)
+
+
+@router.get("/by-client/{client_id}/assignee/{user_id}", response_model=List[TaskOut])
+def tasks_for_client_and_user(
+    client_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return task_crud.tasks_for_client_and_user(db, client_id=client_id, user_id=user_id)
+
+
 # ---------------------------------------------------
 # KANBAN VIEW
 # ---------------------------------------------------
@@ -108,10 +147,10 @@ def update_task(
 
     # Detect completion ? use special behavior
     if updates.status == "completed":
-        result = task_crud.mark_task_completed(db, task_id)
+        result = task_crud.mark_task_completed(db, task_id, actor_id=current_user.id)
         return result["task"]
 
-    updated = task_crud.update_task(db, task_id, updates)
+    updated = task_crud.update_task(db, task_id, updates, actor_id=current_user.id)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -123,13 +162,14 @@ def update_task(
 def update_task_put(
     task_id: int,
     payload: TaskUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     if payload.status == "completed":
-        result = task_crud.mark_task_completed(db, task_id)
+        result = task_crud.mark_task_completed(db, task_id, actor_id=current_user.id)
         return result["task"]
 
-    return task_crud.update_task(db, task_id, payload)
+    return task_crud.update_task(db, task_id, payload, actor_id=current_user.id)
 
 
 # ---------------------------------------------------
@@ -157,7 +197,9 @@ def assign_user_to_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    assignment = task_crud.add_user_to_task(db, task_id, user_id)
+    assignment = task_crud.add_user_to_task(
+        db, task_id, user_id, performed_by=current_user.id
+    )
     return {"message": "User assigned", "assignment_id": assignment.id}
 
 
@@ -168,7 +210,9 @@ def remove_user_from_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    success = task_crud.remove_user_from_task(db, task_id, user_id)
+    success = task_crud.remove_user_from_task(
+        db, task_id, user_id, performed_by=current_user.id
+    )
     if not success:
         raise HTTPException(status_code=404, detail="Assignment not found")
     return {"message": "User removed"}
@@ -184,7 +228,7 @@ def add_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return task_crud.add_subtask(db, task_id, subtask_data)
+    return task_crud.add_subtask(db, task_id, subtask_data, performed_by=current_user.id)
 
 
 @router.patch("/subtasks/{subtask_id}", response_model=SubtaskOut)
@@ -199,6 +243,7 @@ def update_subtask(
         subtask_id,
         title=updates.title,
         completed=updates.completed,
+        performed_by=current_user.id,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Subtask not found")
@@ -211,7 +256,7 @@ def delete_subtask(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    deleted = task_crud.delete_subtask(db, subtask_id)
+    deleted = task_crud.delete_subtask(db, subtask_id, performed_by=current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Subtask not found")
     return
