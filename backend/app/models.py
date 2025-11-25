@@ -88,6 +88,7 @@ class Client(Base):
     primary_contact = Column(String, nullable=True)
     primary_email = Column(String, nullable=True)
     primary_phone = Column(String, nullable=True)
+    status = Column(String, default="active")
 
     # Internal assigned staff
     cpa = Column(String, nullable=True)
@@ -103,6 +104,10 @@ class Client(Base):
     # Relationship to tasks (one-to-many)
     tasks = relationship("Task", back_populates="client", cascade="all, delete")
     assignments = relationship("ClientAssignment", back_populates="client", cascade="all, delete")
+    contacts = relationship("Contact", secondary="client_contacts", back_populates="clients")
+    contact_links = relationship("ClientContact", back_populates="client", cascade="all, delete-orphan")
+    accounts = relationship("Account", back_populates="client", cascade="all, delete-orphan")
+    group_memberships = relationship("ClientGroupMember", back_populates="client", cascade="all, delete-orphan")
 
 
 class ClientAssignment(Base):
@@ -114,6 +119,68 @@ class ClientAssignment(Base):
 
     user = relationship("User", back_populates="client_assignments")
     client = relationship("Client", back_populates="assignments")
+
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    title = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    clients = relationship("Client", secondary="client_contacts", back_populates="contacts")
+    links = relationship("ClientContact", back_populates="contact", cascade="all, delete-orphan")
+
+
+class ClientContact(Base):
+    __tablename__ = "client_contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    contact_id = Column(Integer, ForeignKey("contacts.id"), nullable=False)
+    relationship = Column(String, nullable=True)
+
+    client = relationship("Client", back_populates="contact_links")
+    contact = relationship("Contact", back_populates="links")
+
+
+class Account(Base):
+    __tablename__ = "accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    name = Column(String, nullable=False)
+    account_type = Column(String, nullable=True)
+    institution = Column(String, nullable=True)
+    number_last4 = Column(String, nullable=True)
+    status = Column(String, default="active")
+
+    client = relationship("Client", back_populates="accounts")
+
+
+class ClientGroup(Base):
+    __tablename__ = "client_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+
+    members = relationship("ClientGroupMember", back_populates="group", cascade="all, delete-orphan")
+
+
+class ClientGroupMember(Base):
+    __tablename__ = "client_group_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("client_groups.id"), nullable=False)
+    role = Column(String, nullable=True)
+
+    client = relationship("Client", back_populates="group_memberships")
+    group = relationship("ClientGroup", back_populates="members")
 
 
 # ---------------------
