@@ -6,7 +6,9 @@ from .models import Client, Task, TaskAssignment
 from .schemas.clients import ClientCreate, ClientUpdate
 import json
 from datetime import datetime
-from backend.app.services.recurrence.generator import generate_on_completion
+from backend.app.services.recurrence.evaluator import evaluate_task_for_recurrence
+from backend.app.services.recurrence.notifications import send_notification
+from backend.app.services.recurrence.generator import create_next_recurring_task
 
 # Get a user by email
 def get_user_by_email(db: Session, email: str):
@@ -166,25 +168,33 @@ def delete_client(db, client_id: int):
 
 def mark_task_completed(db, task_id: int, actor_id: int | None = None):
     """
-    Mark a task as completed and, if recurring, generate the next occurrence immediately.
-    Returns the updated task and (optionally) the new generated task.
+    Marks a task as completed.
+    If it is recurring AND all subtasks completed, generate the next occurrence.
     """
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
         return None
 
+    # Mark task as completed
     task.status = "completed"
     task.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(task)
 
-    generated = None
-    try:
-        gen_mode = getattr(task, "generation_mode", "on_completion")
-        if getattr(task, "is_recurring", False) and gen_mode == "on_completion":
-            generated = generate_on_completion(db, task)
-    except Exception as e:
-        db.rollback()
-        print("recurrence generation error:", e)
+    # If not a recurring task ? no further action
+    if not task.is_recurring:
+        return {"task": task, "generated": None}
+
+    # -----------------------------
+    # Run recurrence evaluator
+    # -----------------------------
+    generated = evaluate_task_for_recurrence(
+        db=db,
+        task_model=models.Task,
+        subtask_model=models.Subtask,
+        task_instance=task,
+        commit=True,
+        notification_hook=send_notification
+    )
 
     return {"task": task, "generated": generated}

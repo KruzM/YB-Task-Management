@@ -11,6 +11,9 @@ from fastapi.openapi.utils import get_openapi
 from backend.app.routers.users_router import router as users_router
 from backend.app.startup import seed_data
 from .database import Base, engine, SessionLocal
+from backend.app import models
+from backend.app.services.recurrence.evaluator import evaluate_task_for_recurrence
+
 
 import asyncio
 from datetime import datetime
@@ -35,7 +38,7 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------
-#   RECURRENCE BACKGROUND TASK
+#   RECURRENCE BACKGROUND TASK 
 # ---------------------------------------------------------
 async def recurrence_background_task():
     await asyncio.sleep(5)  # wait for app to fully start
@@ -43,18 +46,36 @@ async def recurrence_background_task():
         try:
             now = datetime.utcnow()
             db: Session = SessionLocal()
-            from backend.app.services.recurrence.generator import run_recurrence_pass
 
-            created = run_recurrence_pass(db)
-            if created:
-                print(f"[recurrence] created {len(created)} tasks at {now.isoformat()}")
+            # Find completed recurring tasks
+            tasks = db.query(models.Task).filter(
+                models.Task.is_recurring == True,
+                models.Task.status == "completed"
+            ).all()
+
+            created_ids = []
+
+            # Run evaluator for each
+            for task in tasks:
+                new_task = evaluate_task_for_recurrence(
+                    db=db,
+                    task_model=models.Task,
+                    subtask_model=models.Subtask,
+                    task_instance=task,
+                    commit=True,
+                    notification_hook=None,
+                )
+                if new_task:
+                    created_ids.append(new_task.id)
+
+            if created_ids:
+                print(f"[recurrence] created {len(created_ids)} tasks at {now.isoformat()}")
 
             db.close()
         except Exception as e:
             print("recurrence background error:", e)
 
         await asyncio.sleep(300)  # run every 5 minutes
-
 
 # ---------------------------------------------------------
 #   STARTUP EVENT

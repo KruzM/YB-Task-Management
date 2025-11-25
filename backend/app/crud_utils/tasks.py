@@ -23,7 +23,21 @@ def create_task(db: Session, data: TaskCreate, creator_id: int):
         due_date=data.due_date,
         billable=data.billable,
         status=data.status or "new",
-        created_by=creator_id
+        created_by=creator_id,
+
+        # ---------------------
+        # Recurrence fields
+        # ---------------------
+        is_recurring=data.is_recurring,
+        recurrence_rule=(
+            data.recurrence_rule.value if data.recurrence_rule else None
+        ),
+        recurrence_interval=data.recurrence_interval,
+        recurrence_weekday=data.recurrence_weekday,
+        recurrence_day_of_month=data.recurrence_day_of_month,
+        recurrence_end_date=data.recurrence_end_date,
+        title_template=data.title_template,
+        generation_mode=data.generation_mode,
     )
 
     db.add(new_task)
@@ -62,7 +76,6 @@ def create_task(db: Session, data: TaskCreate, creator_id: int):
     db.refresh(new_task)
 
     return new_task
-
 
 # ---------------------------------------------------
 # GET TASK / LIST TASKS
