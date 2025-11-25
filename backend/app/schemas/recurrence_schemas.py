@@ -1,6 +1,6 @@
 # backend/app/schemas/recurrence_schemas.py
 # ---------------------
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 from enum import Enum
@@ -33,4 +33,4 @@ class RecurrenceConfig(BaseModel):
 # ---------------------
 class RunResult(BaseModel):
     created: int
-    ids: List[int] = []
+    ids: List[int] = Field(default_factory=list)

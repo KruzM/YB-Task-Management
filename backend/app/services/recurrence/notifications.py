@@ -1,8 +1,6 @@
 # ---------------------
 # Notifications (placeholder)
 # ---------------------
-from typing import Optional
-
 def send_notification(user_id: int, message: str, *, task=None):
     """
     Hook for sending notifications. Replace with your real notification system.
