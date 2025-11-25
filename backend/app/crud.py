@@ -167,7 +167,16 @@ def update_client(db, client_id: int, upd: ClientUpdate):
     if not client:
         return None
 
-    for field, value in upd.dict(exclude_unset=True).items():
+    # Check if status is being changed to inactive/left, mark documents for purge
+    upd_dict = upd.dict(exclude_unset=True)
+    if 'status' in upd_dict:
+        new_status = upd_dict.get('status', '').lower() if upd_dict.get('status') else ''
+        old_status = (client.status or '').lower()
+        if new_status in ('inactive', 'left', 'closed') and old_status not in ('inactive', 'left', 'closed'):
+            from backend.app.crud_utils.documents import mark_client_left
+            mark_client_left(db, client_id)
+
+    for field, value in upd_dict.items():
         setattr(client, field, value)
 
     db.commit()
@@ -179,6 +188,10 @@ def delete_client(db, client_id: int):
     client = get_client_by_id(db, client_id)
     if not client:
         return False
+
+    # Mark documents for purge before deleting client
+    from backend.app.crud_utils.documents import mark_client_left
+    mark_client_left(db, client_id)
 
     db.delete(client)
     db.commit()

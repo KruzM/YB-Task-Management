@@ -5,6 +5,7 @@ from backend.app.routers import tasks_router
 from .routers import clients_router, auth_router, audit
 from backend.app.routers import admin_permissions_router
 from backend.app.routers.recurrence_router import router as recurrence_router
+from backend.app.routers.documents_router import router as documents_router
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -77,6 +78,31 @@ async def recurrence_background_task():
 
         await asyncio.sleep(300)  # run every 5 minutes
 
+
+# ---------------------------------------------------------
+#   DOCUMENT PURGE BACKGROUND TASK
+# ---------------------------------------------------------
+async def document_purge_background_task():
+    await asyncio.sleep(10)  # wait for app to fully start
+    while True:
+        try:
+            now = datetime.utcnow()
+            db: Session = SessionLocal()
+
+            # Execute approved document purges
+            from backend.app.crud_utils.documents import execute_purge_approved_documents
+            purged_count = execute_purge_approved_documents(db, performed_by=None)  # System action
+
+            if purged_count > 0:
+                print(f"[document_purge] purged {purged_count} documents at {now.isoformat()}")
+
+            db.close()
+        except Exception as e:
+            print("document purge background error:", e)
+
+        await asyncio.sleep(86400)  # run once per day
+
+
 # ---------------------------------------------------------
 #   STARTUP EVENT
 # ---------------------------------------------------------
@@ -85,6 +111,7 @@ async def startup_event():
     # Base.metadata.create_all(bind=engine)
     seed_data()
     asyncio.create_task(recurrence_background_task())
+    asyncio.create_task(document_purge_background_task())
 
 
 # ---------------------------------------------------------
@@ -98,6 +125,7 @@ app.include_router(clients_router.router)
 app.include_router(audit.router)
 app.include_router(admin_permissions_router.router, prefix="/admin", tags=["Admin Permissions"])
 app.include_router(users_router)
+app.include_router(documents_router)
 
 
 # ---------------------------------------------------------

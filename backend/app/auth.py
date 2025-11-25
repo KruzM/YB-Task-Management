@@ -1,6 +1,6 @@
 # backend/app/auth.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -13,6 +13,7 @@ from backend.app.utils.security import (
     create_access_token,
     hash_password,
     get_current_user,
+    create_or_update_session,
 )
 from .schemas.users import UserCreate  # ? ONLY NEED UserCreate
 from .crud import create_user, get_user_by_email
@@ -32,6 +33,10 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token_for_user(user)
+    
+    # Create or update session for inactivity tracking
+    expires_delta = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")))
+    create_or_update_session(db, user.id, access_token, expires_delta)
 
     cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
     cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax")
@@ -59,7 +64,25 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
     }
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(request: Request, response: Response, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Delete session from database
+    token = request.cookies.get("token")
+    if not token:
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1].strip()
+    
+    if token and current_user:
+        from backend.app.utils.security import hash_token
+        token_hash = hash_token(token)
+        session = db.query(models.UserSession).filter(
+            models.UserSession.user_id == current_user.id,
+            models.UserSession.token_hash == token_hash,
+        ).first()
+        if session:
+            db.delete(session)
+            db.commit()
+    
     response.delete_cookie("token", path="/")
     return {"message": "Logged out"}
 

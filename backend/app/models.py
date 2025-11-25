@@ -282,6 +282,79 @@ class TaskTag(Base):
 
 
 # ---------------------------------------------------------
+# DOCUMENT MANAGEMENT
+# ---------------------------------------------------------
+class DocumentType(str, enum.Enum):
+    statement = "statement"
+    tax_document = "tax_document"
+    misc = "misc"
+
+
+class DocumentStatus(str, enum.Enum):
+    received = "received"
+    missing = "missing"
+    pending_purge = "pending_purge"
+    purged = "purged"
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Document metadata
+    filename = Column(String, nullable=False)
+    original_filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)  # Storage path
+    file_size = Column(Integer, nullable=True)  # Size in bytes
+    mime_type = Column(String, nullable=True)
+    
+    # Document classification
+    document_type = Column(String, nullable=False)  # statement, tax_document, misc
+    status = Column(String, default=DocumentStatus.received.value)
+    
+    # Client and account linkage
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    
+    # Time period (for statements)
+    month = Column(Integer, nullable=True)  # 1-12
+    year = Column(Integer, nullable=True)
+    
+    # Upload tracking
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Purge tracking
+    client_left_date = Column(DateTime, nullable=True)  # When client status changed to inactive/left
+    purge_hold_until = Column(DateTime, nullable=True)  # 6 months after client_left_date
+    purge_approved_by_1 = Column(Integer, ForeignKey("users.id"), nullable=True)
+    purge_approved_by_2 = Column(Integer, ForeignKey("users.id"), nullable=True)
+    purge_approved_at = Column(DateTime, nullable=True)
+    purged_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    client = relationship("Client", backref="documents")
+    account = relationship("Account", backref="documents")
+    uploader = relationship("User", foreign_keys=[uploaded_by], backref="uploaded_documents")
+    approver_1 = relationship("User", foreign_keys=[purge_approved_by_1])
+    approver_2 = relationship("User", foreign_keys=[purge_approved_by_2])
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token_hash = Column(String, nullable=False)  # Hash of the JWT token
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    
+    user = relationship("User", backref="sessions")
+
+
+# ---------------------------------------------------------
 # AUDIT LOG
 # ---------------------------------------------------------
 class AuditLog(Base):
