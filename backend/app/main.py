@@ -19,6 +19,7 @@ from backend.app.services.recurrence.evaluator import evaluate_task_for_recurren
 import asyncio
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import os
 
 load_dotenv()
@@ -91,6 +92,17 @@ async def document_purge_background_task():
 
             # Execute approved document purges
             from backend.app.crud_utils.documents import execute_purge_approved_documents
+            from sqlalchemy import text
+            
+            # Check if documents table exists before trying to purge
+            try:
+                db.execute(text("SELECT 1 FROM documents LIMIT 1"))
+            except Exception:
+                # Table doesn't exist, skip purge task
+                db.close()
+                await asyncio.sleep(86400)
+                continue
+            
             purged_count = execute_purge_approved_documents(db, performed_by=None)  # System action
 
             if purged_count > 0:
@@ -98,7 +110,10 @@ async def document_purge_background_task():
 
             db.close()
         except Exception as e:
-            print("document purge background error:", e)
+            # Log error but don't crash - table might not exist yet
+            error_msg = str(e).lower()
+            if "no such table" not in error_msg and "does not exist" not in error_msg:
+                print("document purge background error:", e)
 
         await asyncio.sleep(86400)  # run once per day
 
