@@ -26,7 +26,9 @@ def _clone_task_fields(src_task):
         "recurrence_interval": src_task.recurrence_interval,
         "recurrence_weekday": src_task.recurrence_weekday,
         "recurrence_day_of_month": src_task.recurrence_day_of_month,
+        "recurrence_end_date": src_task.recurrence_end_date,
         "generation_mode": src_task.generation_mode,
+        "title_template": src_task.title_template,
 
         # Link chain of recurring tasks
         "parent_task_id": src_task.parent_task_id or src_task.id,
