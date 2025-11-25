@@ -209,7 +209,7 @@ def list_contacts(db: Session, search: Optional[str] = None):
     return query.all()
 
 
-def attach_contact_to_client(db: Session, client_id: int, contact_id: int, relationship: Optional[str] = None):
+def attach_contact_to_client(db: Session, client_id: int, contact_id: int, relationship_type: Optional[str] = None):
     existing = (
         db.query(ClientContact)
         .filter(ClientContact.client_id == client_id, ClientContact.contact_id == contact_id)
@@ -218,7 +218,11 @@ def attach_contact_to_client(db: Session, client_id: int, contact_id: int, relat
     if existing:
         return existing
 
-    link = ClientContact(client_id=client_id, contact_id=contact_id, relationship=relationship)
+    link = ClientContact(
+        client_id=client_id,
+        contact_id=contact_id,
+        relationship_type=relationship_type,
+    )
     db.add(link)
     db.commit()
     db.refresh(link)

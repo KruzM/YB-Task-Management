@@ -141,7 +141,9 @@ class ClientContact(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     contact_id = Column(Integer, ForeignKey("contacts.id"), nullable=False)
-    relationship = Column(String, nullable=True)
+    # Stored in the DB as "relationship" but exposed in code as relationship_type to
+    # avoid shadowing sqlalchemy.orm.relationship in the class scope.
+    relationship_type = Column("relationship", String, nullable=True)
 
     client = relationship("Client", back_populates="contact_links")
     contact = relationship("Contact", back_populates="links")
