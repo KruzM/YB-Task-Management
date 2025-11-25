@@ -105,7 +105,7 @@ class Client(Base):
     tasks = relationship("Task", back_populates="client", cascade="all, delete")
     assignments = relationship("ClientAssignment", back_populates="client", cascade="all, delete")
     contacts = relationship("Contact", secondary="client_contacts", back_populates="clients")
-    contact_links = relationship("ClientContact", back_populates="client", cascade="all, delete-orphan")
+    contact_links = relationship("ClientContact", back_populates="client", cascade="all, delete-orphan", overlaps="contacts")
     accounts = relationship("Account", back_populates="client", cascade="all, delete-orphan")
     group_memberships = relationship("ClientGroupMember", back_populates="client", cascade="all, delete-orphan")
 
@@ -132,7 +132,7 @@ class Contact(Base):
     notes = Column(Text, nullable=True)
 
     clients = relationship("Client", secondary="client_contacts", back_populates="contacts")
-    links = relationship("ClientContact", back_populates="contact", cascade="all, delete-orphan")
+    links = relationship("ClientContact", back_populates="contact", cascade="all, delete-orphan", overlaps="clients,contacts")
 
 
 class ClientContact(Base):
@@ -145,8 +145,8 @@ class ClientContact(Base):
     # avoid shadowing sqlalchemy.orm.relationship in the class scope.
     relationship_type = Column("relationship", String, nullable=True)
 
-    client = relationship("Client", back_populates="contact_links")
-    contact = relationship("Contact", back_populates="links")
+    client = relationship("Client", back_populates="contact_links", overlaps="clients,contacts")
+    contact = relationship("Contact", back_populates="links", overlaps="clients,contacts")
 
 
 class Account(Base):

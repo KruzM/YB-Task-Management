@@ -1,7 +1,10 @@
 # Database Migration Fix
 
 ## Problem
-The database is missing the `user_sessions` and `documents` tables, causing errors when the application tries to use them.
+The database is missing several tables and columns:
+- `user_sessions` table (causing warnings)
+- `documents` table (causing background task errors)
+- `clients.status` column (causing 500 errors on client endpoints)
 
 ## Solution
 
@@ -10,13 +13,20 @@ The database is missing the `user_sessions` and `documents` tables, causing erro
 On your Raspberry Pi (or wherever the backend is running), execute:
 
 ```bash
-cd /home/kruzer04/YB-Task-Management
+cd /home/kruzer04/YB-Task-Management/YB-Task-Management
 source venv/bin/activate  # or: . venv/bin/activate
 alembic upgrade head
 ```
 
+Or use the provided script:
+```bash
+chmod +x RUN_MIGRATIONS.sh
+./RUN_MIGRATIONS.sh
+```
+
 This will:
 - Apply all pending migrations
+- Add the `status` column to the `clients` table
 - Create the `user_sessions` table
 - Create the `documents` table
 - Update any other missing schema elements
