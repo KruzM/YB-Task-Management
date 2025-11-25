@@ -52,6 +52,8 @@ class RolePermission(Base):
 class TaskStatus(str, enum.Enum):
     new = "new"
     in_progress = "in_progress"
+    waiting = "waiting"
+    waiting_on_client = "waiting_on_client"
     completed = "completed"
 
 

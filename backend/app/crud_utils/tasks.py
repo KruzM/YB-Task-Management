@@ -1,14 +1,17 @@
 from sqlalchemy.orm import Session
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional, List, Tuple
+from datetime import datetime, date, time
 
-from sqlalchemy import or_, asc, desc
+from sqlalchemy import or_, asc, desc, func, case
 from backend.app import models
-from backend.app.models import Task, TaskAssignment, Tag
+from backend.app.models import Task, TaskAssignment, Tag, User
 from backend.app.schemas.tasks import (
     TaskCreate, TaskUpdate, SubtaskCreate
 )
 from backend.app.models import TaskTag
+from backend.app.crud_utils.audit import log_task_action
+from backend.app.services.recurrence.evaluator import evaluate_task_for_recurrence
+from backend.app.services.recurrence.notifications import send_notification
 
 # ---------------------------------------------------
 # CREATE TASK
@@ -43,6 +46,14 @@ def create_task(db: Session, data: TaskCreate, creator_id: int):
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
+
+    log_task_action(
+        db,
+        action="task_created",
+        task_id=new_task.id,
+        performed_by=creator_id,
+        details={"title": new_task.title, "client_id": new_task.client_id},
+    )
 
     # 2. Attach tags (create tags if they don't exist)
     if getattr(data, "tags", None):
@@ -153,7 +164,7 @@ def list_tasks(
 # UPDATE TASK
 # ---------------------------------------------------
 
-def update_task(db: Session, task_id: int, data: TaskUpdate):
+def update_task(db: Session, task_id: int, data: TaskUpdate, actor_id: Optional[int] = None):
     task = get_task(db, task_id)
     if not task:
         return None
@@ -177,6 +188,14 @@ def update_task(db: Session, task_id: int, data: TaskUpdate):
 
     db.commit()
     db.refresh(task)
+    if actor_id:
+        log_task_action(
+            db,
+            action="task_updated",
+            task_id=task.id,
+            performed_by=actor_id,
+            details={"updated_fields": list(update_data.keys())},
+        )
     return task
 
 
@@ -189,6 +208,13 @@ def delete_task(db: Session, task_id: int):
     if not task:
         return False
 
+    log_task_action(
+        db,
+        action="task_deleted",
+        task_id=task_id,
+        performed_by=task.created_by,
+        details={"title": task.title},
+    )
     db.delete(task)
     db.commit()
     return True
@@ -198,7 +224,9 @@ def delete_task(db: Session, task_id: int):
 # MANAGE ASSIGNMENTS
 # ---------------------------------------------------
 
-def add_user_to_task(db: Session, task_id: int, user_id: int, role: str = "assignee"):
+def add_user_to_task(
+    db: Session, task_id: int, user_id: int, role: str = "assignee", performed_by: Optional[int] = None
+):
     assignment = models.TaskAssignment(
         task_id=task_id,
         user_id=user_id,
@@ -206,10 +234,18 @@ def add_user_to_task(db: Session, task_id: int, user_id: int, role: str = "assig
     )
     db.add(assignment)
     db.commit()
+    if performed_by:
+        log_task_action(
+            db,
+            action="task_assigned",
+            task_id=task_id,
+            performed_by=performed_by,
+            details={"assigned_user_id": user_id, "role": role},
+        )
     return assignment
 
 
-def remove_user_from_task(db: Session, task_id: int, user_id: int):
+def remove_user_from_task(db: Session, task_id: int, user_id: int, performed_by: Optional[int] = None):
     assignment = (
         db.query(models.TaskAssignment)
         .filter(
@@ -224,6 +260,14 @@ def remove_user_from_task(db: Session, task_id: int, user_id: int):
 
     db.delete(assignment)
     db.commit()
+    if performed_by:
+        log_task_action(
+            db,
+            action="task_unassigned",
+            task_id=task_id,
+            performed_by=performed_by,
+            details={"removed_user_id": user_id},
+        )
     return True
 
 
@@ -231,7 +275,7 @@ def remove_user_from_task(db: Session, task_id: int, user_id: int):
 # MANAGE SUBTASKS
 # ---------------------------------------------------
 
-def add_subtask(db: Session, task_id: int, data: SubtaskCreate):
+def add_subtask(db: Session, task_id: int, data: SubtaskCreate, performed_by: Optional[int] = None):
     subtask = models.Subtask(
         task_id=task_id,
         title=data.title,
@@ -240,10 +284,18 @@ def add_subtask(db: Session, task_id: int, data: SubtaskCreate):
     db.add(subtask)
     db.commit()
     db.refresh(subtask)
+    if performed_by:
+        log_task_action(
+            db,
+            action="subtask_created",
+            task_id=task_id,
+            performed_by=performed_by,
+            details={"subtask_id": subtask.id, "title": subtask.title},
+        )
     return subtask
 
 
-def update_subtask(db: Session, subtask_id: int, title=None, completed=None):
+def update_subtask(db: Session, subtask_id: int, title=None, completed=None, performed_by: Optional[int] = None):
     subtask = (
         db.query(models.Subtask)
         .filter(models.Subtask.id == subtask_id)
@@ -259,10 +311,18 @@ def update_subtask(db: Session, subtask_id: int, title=None, completed=None):
 
     db.commit()
     db.refresh(subtask)
+    if performed_by:
+        log_task_action(
+            db,
+            action="subtask_updated",
+            task_id=subtask.task_id,
+            performed_by=performed_by,
+            details={"subtask_id": subtask_id, "title": title, "completed": completed},
+        )
     return subtask
 
 
-def delete_subtask(db: Session, subtask_id: int):
+def delete_subtask(db: Session, subtask_id: int, performed_by: Optional[int] = None):
     subtask = (
         db.query(models.Subtask)
         .filter(models.Subtask.id == subtask_id)
@@ -273,7 +333,128 @@ def delete_subtask(db: Session, subtask_id: int):
 
     db.delete(subtask)
     db.commit()
+    if performed_by:
+        log_task_action(
+            db,
+            action="subtask_deleted",
+            task_id=subtask.task_id,
+            performed_by=performed_by,
+            details={"subtask_id": subtask_id},
+        )
     return True
+
+
+# ---------------------------------------------------
+# TASK COMPLETION & RECURRENCE
+# ---------------------------------------------------
+
+
+def mark_task_completed(db: Session, task_id: int, actor_id: Optional[int] = None):
+    """Mark a task completed and trigger recurrence if applicable."""
+
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        return None
+
+    task.status = "completed"
+    task.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(task)
+
+    if actor_id:
+        log_task_action(
+            db,
+            action="task_completed",
+            task_id=task.id,
+            performed_by=actor_id,
+            details={"title": task.title},
+        )
+
+    if not task.is_recurring:
+        return {"task": task, "generated": None}
+
+    generated = evaluate_task_for_recurrence(
+        db=db,
+        task_model=models.Task,
+        subtask_model=models.Subtask,
+        task_instance=task,
+        commit=True,
+        notification_hook=send_notification,
+    )
+
+    return {"task": task, "generated": generated}
+
+
+# ---------------------------------------------------
+# DASHBOARDS & VIEWS
+# ---------------------------------------------------
+
+
+def tasks_due_today_for_user(db: Session, user_id: int) -> Tuple[List[Task], List[Task]]:
+    today = date.today()
+    start = datetime.combine(today, time.min)
+    end = datetime.combine(today, time.max)
+
+    base_query = (
+        db.query(Task)
+        .join(Task.assignments)
+        .filter(
+            TaskAssignment.user_id == user_id,
+            Task.due_date >= start,
+            Task.due_date <= end,
+        )
+    )
+
+    one_off = base_query.filter(Task.is_recurring.is_(False)).all()
+    recurring = base_query.filter(Task.is_recurring.is_(True)).all()
+    return one_off, recurring
+
+
+def waiting_on_client_queue(db: Session, user_id: Optional[int] = None) -> List[Task]:
+    query = db.query(Task).filter(Task.status == "waiting_on_client")
+    if user_id:
+        query = query.join(Task.assignments).filter(TaskAssignment.user_id == user_id)
+    return query.all()
+
+
+def admin_overview_by_user(db: Session) -> List[dict]:
+    rows = (
+        db.query(
+            TaskAssignment.user_id,
+            func.coalesce(User.full_name, User.email).label("user_name"),
+            func.count(Task.id).label("total"),
+            func.count(case((Task.status == "completed", 1))).label("completed"),
+            func.count(case((Task.status == "in_progress", 1))).label("in_progress"),
+            func.count(case((Task.status == "waiting_on_client", 1))).label("waiting_on_client"),
+            func.count(case((Task.status != "completed", 1))).label("open_tasks"),
+        )
+        .join(User, User.id == TaskAssignment.user_id)
+        .join(Task, Task.id == TaskAssignment.task_id)
+        .group_by(TaskAssignment.user_id, User.full_name, User.email)
+        .all()
+    )
+
+    return [
+        {
+            "user_id": r.user_id,
+            "user_name": r.user_name,
+            "total_tasks": r.total,
+            "open_tasks": r.open_tasks,
+            "in_progress_tasks": r.in_progress,
+            "waiting_on_client": r.waiting_on_client,
+            "completed_tasks": r.completed,
+        }
+        for r in rows
+    ]
+
+
+def tasks_for_client_and_user(db: Session, client_id: int, user_id: int) -> List[Task]:
+    return (
+        db.query(Task)
+        .join(Task.assignments)
+        .filter(Task.client_id == client_id, TaskAssignment.user_id == user_id)
+        .all()
+    )
 
 def kanban_board(db: Session):
     # Fetch all tasks

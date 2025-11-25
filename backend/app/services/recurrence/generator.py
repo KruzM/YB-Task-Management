@@ -3,7 +3,6 @@
 # ---------------------
 from __future__ import annotations
 from datetime import date, datetime
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -27,7 +26,9 @@ def _clone_task_fields(src_task):
         "recurrence_interval": src_task.recurrence_interval,
         "recurrence_weekday": src_task.recurrence_weekday,
         "recurrence_day_of_month": src_task.recurrence_day_of_month,
+        "recurrence_end_date": src_task.recurrence_end_date,
         "generation_mode": src_task.generation_mode,
+        "title_template": src_task.title_template,
 
         # Link chain of recurring tasks
         "parent_task_id": src_task.parent_task_id or src_task.id,
@@ -61,12 +62,17 @@ def create_next_recurring_task(
 
     # Compute new due date
     next_due = next_due_for_rule(
-    last_date,
-    recurrence_rule.get("type", "monthly"),
-    assigned_weekday=recurrence_rule.get("assigned_weekday"),
-    day_of_month=recurrence_rule.get("day_of_month"),
-    every=recurrence_rule.get("every", 1),
-)
+        last_date,
+        recurrence_rule.get("type", "monthly"),
+        assigned_weekday=recurrence_rule.get("assigned_weekday"),
+        day_of_month=recurrence_rule.get("day_of_month"),
+        every=recurrence_rule.get("every", 1),
+    )
+
+    # Respect recurrence end-date cutoff
+    recurrence_end = to_date(getattr(src_task, "recurrence_end_date", None))
+    if recurrence_end and next_due > recurrence_end:
+        return None
 
 
     # Clone fields
