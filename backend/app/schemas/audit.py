@@ -15,9 +15,16 @@ class AuditBase(BaseModel):
 class AuditCreate(AuditBase):
     pass
 
-class AuditResponse(AuditBase):
+class AuditResponse(BaseModel):
     id: int
+    action: str
+    entity_type: str
+    entity_id: Optional[int] = None
+    performed_by: Optional[int] = None
     timestamp: datetime
+    details: Optional[dict] = None
+    user_email: Optional[str] = None
+    user_full_name: Optional[str] = None
 
     class Config:
         orm_mode = True

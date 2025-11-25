@@ -3,6 +3,7 @@ from typing import Optional
 from . import models
 from backend.app.schemas.users import UserCreate
 from sqlalchemy.exc import IntegrityError
+from .crud_utils.audit import log_client_action
 from .models import (
     Client,
     Task,
@@ -64,21 +65,42 @@ def create_user(db: Session, user, hashed_password: str):
             db.refresh(db_user)
     return db_user
 
-def update_user(db: Session, user_id: int, updates):
+def update_user(db: Session, user_id: int, updates, performed_by: Optional[int] = None):
     db_user = get_user_by_id(db, user_id)
     if not db_user:
         return None
+    
+    old_values = {}
     if updates.full_name is not None:
+        old_values["full_name"] = db_user.full_name
         db_user.full_name = updates.full_name
     if updates.password:
+        old_values["password"] = "***"  # Don't log actual password
         from backend.app.utils.security import hash_password
         db_user.hashed_password = hash_password(updates.password)
     if updates.is_active is not None:
+        old_values["is_active"] = db_user.is_active
         db_user.is_active = updates.is_active
     if updates.role_id is not None:
+        old_values["role_id"] = db_user.role_id
         db_user.role_id = updates.role_id
+    
     db.commit()
     db.refresh(db_user)
+    
+    if performed_by:
+        from backend.app.crud_utils.audit import log_user_action
+        log_user_action(
+            db=db,
+            action="user_updated",
+            user_id=user_id,
+            performed_by=performed_by,
+            details={
+                "updated_fields": list(old_values.keys()),
+                "old_values": old_values,
+            },
+        )
+    
     return db_user
 
 def set_user_role(db: Session, user_id: int, role_id: int):
@@ -112,11 +134,21 @@ def activate_user(db: Session, user_id: int):
 # CLIENT CRUD OPERATIONS
 # =============================
 
-def create_client(db, client_data: ClientCreate):
+def create_client(db, client_data: ClientCreate, performed_by: Optional[int] = None):
     new_client = Client(**client_data.dict())
     db.add(new_client)
     db.commit()
     db.refresh(new_client)
+    
+    if performed_by:
+        log_client_action(
+            db=db,
+            action="client_created",
+            client_id=new_client.id,
+            performed_by=performed_by,
+            details={"name": new_client.name, "status": new_client.status},
+        )
+    
     return new_client
 
 
@@ -162,10 +194,13 @@ def get_client_by_id(db, client_id: int):
     )
 
 
-def update_client(db, client_id: int, upd: ClientUpdate):
+def update_client(db, client_id: int, upd: ClientUpdate, performed_by: Optional[int] = None):
     client = get_client_by_id(db, client_id)
     if not client:
         return None
+
+    # Store old values for audit log
+    old_values = {field: getattr(client, field) for field in upd.dict(exclude_unset=True).keys()}
 
     # Check if status is being changed to inactive/left, mark documents for purge
     upd_dict = upd.dict(exclude_unset=True)
@@ -181,13 +216,29 @@ def update_client(db, client_id: int, upd: ClientUpdate):
 
     db.commit()
     db.refresh(client)
+    
+    if performed_by:
+        log_client_action(
+            db=db,
+            action="client_updated",
+            client_id=client_id,
+            performed_by=performed_by,
+            details={
+                "updated_fields": list(upd_dict.keys()),
+                "old_values": old_values,
+                "new_values": upd_dict,
+            },
+        )
+    
     return client
 
 
-def delete_client(db, client_id: int):
+def delete_client(db, client_id: int, performed_by: Optional[int] = None):
     client = get_client_by_id(db, client_id)
     if not client:
         return False
+
+    client_name = client.name
 
     # Mark documents for purge before deleting client
     from backend.app.crud_utils.documents import mark_client_left
@@ -195,6 +246,16 @@ def delete_client(db, client_id: int):
 
     db.delete(client)
     db.commit()
+    
+    if performed_by:
+        log_client_action(
+            db=db,
+            action="client_deleted",
+            client_id=client_id,
+            performed_by=performed_by,
+            details={"name": client_name},
+        )
+    
     return True
 
 

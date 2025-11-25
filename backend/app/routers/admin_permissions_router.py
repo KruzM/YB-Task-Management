@@ -8,6 +8,7 @@ from backend.app.utils.permissions import require_permission
 from backend.app.utils.security import get_current_user
 from backend.app.schemas.roles import RoleCreate, RoleOut, RoleUpdate
 from typing import List, Dict
+from backend.app.crud_utils.audit import log_permission_action
 
 router = APIRouter()  # no prefix here — main.py will attach prefix="/admin"
 
@@ -96,6 +97,17 @@ def create_permission(
     db.add(db_permission)
     db.commit()
     db.refresh(db_permission)
+    
+    # Log permission creation (only if user exists and has ID)
+    if current_user and hasattr(current_user, 'id'):
+        log_permission_action(
+            db=db,
+            action="permission_created",
+            entity_id=db_permission.id,
+            performed_by=current_user.id,
+            details={"permission_name": db_permission.name, "description": db_permission.description},
+        )
+    
     return db_permission
 
 @router.get("/permissions", response_model=List[PermissionRead])
@@ -162,6 +174,18 @@ def update_role(
     db.commit()
     db.refresh(role)
 
+    # Log role update
+    log_permission_action(
+        db=db,
+        action="role_updated",
+        entity_id=role.id,
+        performed_by=current_user.id,
+        details={
+            "role_name": role.name if updates.name else None,
+            "added_permissions": updates.add_permissions,
+            "removed_permissions": updates.remove_permissions,
+        },
+    )
     
     permission_objects = [
         PermissionOut(
@@ -201,8 +225,23 @@ def set_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    old_role_id = user.role_id
     user.role_id = role_id
     db.commit()
     db.refresh(user)
+
+    # Log role assignment
+    log_permission_action(
+        db=db,
+        action="user_role_changed",
+        entity_id=user.id,
+        performed_by=current_user.id,
+        details={
+            "user_email": user.email,
+            "old_role_id": old_role_id,
+            "new_role_id": role_id,
+            "role_name": role.name,
+        },
+    )
 
     return {"id": user.id, "email": user.email, "role_id": user.role_id, "role_name": role.name}

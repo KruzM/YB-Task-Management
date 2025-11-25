@@ -10,6 +10,10 @@ DEFAULT_PERMISSIONS = [
     ("manage_roles", "Can manage roles"),
     ("manage_permissions", "Can manage permissions"),
     ("manage_tasks", "Can manage all tasks"),
+    ("manage_clients", "Can manage clients"),
+    ("view_audit_logs", "Can view audit logs"),
+    ("manage_documents", "Can manage documents"),
+    ("view_reports", "Can view reports"),
 ]
 
 

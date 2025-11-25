@@ -8,6 +8,7 @@ from backend.app.utils.security import get_current_user, hash_password
 from backend.app import crud
 from backend.app import models
 from backend.app.utils.permissions import require_permission
+from backend.app.crud_utils.audit import log_user_action
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
@@ -26,6 +27,20 @@ def create_user_endpoint(
 
     hashed = hash_password(payload.password)
     user = crud.create_user(db, payload, hashed)
+    
+    # Log user creation
+    log_user_action(
+        db=db,
+        action="user_created",
+        user_id=user.id,
+        performed_by=current_user.id,
+        details={
+            "created_user_email": user.email,
+            "created_user_full_name": user.full_name,
+            "role_id": user.role_id,
+        },
+    )
+    
     return user
 
 
@@ -62,7 +77,7 @@ def update_user_endpoint(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    updated = crud.update_user(db, user_id, updates)
+    updated = crud.update_user(db, user_id, updates, performed_by=current_user.id)
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
 

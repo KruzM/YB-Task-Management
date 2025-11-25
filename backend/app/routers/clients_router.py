@@ -67,7 +67,7 @@ def create_client_route(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    new_client = create_client(db, client)
+    new_client = create_client(db, client, performed_by=current_user.id)
     create_standard_client_tasks(db, new_client.id, creator_id=current_user.id)
     return new_client
 
@@ -79,7 +79,7 @@ def update_client_route(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return update_client(db, client_id, client)
+    return update_client(db, client_id, client, performed_by=current_user.id)
 
 # DELETE
 @router.delete("/{client_id}")
@@ -88,7 +88,7 @@ def delete_client_route(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    delete_client(db, client_id)
+    delete_client(db, client_id, performed_by=current_user.id)
     return {"message": "Client deleted"}
 
 

@@ -17,6 +17,7 @@ from backend.app.utils.security import (
 )
 from .schemas.users import UserCreate  # ? ONLY NEED UserCreate
 from .crud import create_user, get_user_by_email
+from .crud_utils.audit import log_user_action
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -30,6 +31,15 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
 
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
+        # Log failed login attempt
+        if user:
+            log_user_action(
+                db=db,
+                action="login_failed",
+                user_id=user.id,
+                performed_by=user.id,
+                details={"email": email, "reason": "Invalid password"},
+            )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token_for_user(user)
@@ -37,6 +47,15 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
     # Create or update session for inactivity tracking
     expires_delta = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")))
     create_or_update_session(db, user.id, access_token, expires_delta)
+
+    # Log successful login
+    log_user_action(
+        db=db,
+        action="login",
+        user_id=user.id,
+        performed_by=user.id,
+        details={"email": email},
+    )
 
     cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
     cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax")
@@ -82,6 +101,15 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db), 
         if session:
             db.delete(session)
             db.commit()
+        
+        # Log logout
+        log_user_action(
+            db=db,
+            action="logout",
+            user_id=current_user.id,
+            performed_by=current_user.id,
+            details={"email": current_user.email},
+        )
     
     response.delete_cookie("token", path="/")
     return {"message": "Logged out"}
@@ -104,6 +132,19 @@ def register_user(
 
     hashed_pw = hash_password(user.password)
     new_user = create_user(db, user, hashed_pw)
+
+    # Log user creation
+    log_user_action(
+        db=db,
+        action="user_created",
+        user_id=new_user.id,
+        performed_by=current_user.id,
+        details={
+            "created_user_email": new_user.email,
+            "created_user_full_name": new_user.full_name,
+            "role_id": new_user.role_id,
+        },
+    )
 
     return {
         "message": "User created successfully",

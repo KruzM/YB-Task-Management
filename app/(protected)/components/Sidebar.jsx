@@ -8,6 +8,7 @@ const NAV = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Clients", href: "/clients" },
   { name: "Tasks", href: "/tasks" },
+  { name: "Audit Logs", href: "/audit" },
 ];
 
 export default function Sidebar() {
